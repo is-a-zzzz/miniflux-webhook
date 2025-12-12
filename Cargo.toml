@@ -1,0 +1,21 @@
+[package]
+name = "miniflux-webhook"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# 异步运行时，使用 full feature 以便方便地启动 http 服务
+tokio = { version = "1", features = ["full"] }
+
+# 轻量级 web 框架
+axum = "0.8"
+
+# JSON 序列化/反序列化
+serde = { version = "1", features = ["derive"] }
+
+# HTTP 客户端，用于向飞书发送请求
+reqwest = { version = "0.12.25", features = ["json"] }
+
+# 日志
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
