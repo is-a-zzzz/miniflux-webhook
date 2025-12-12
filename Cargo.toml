@@ -14,8 +14,9 @@ axum = "0.8"
 serde = { version = "1", features = ["derive"] }
 
 # HTTP 客户端，用于向飞书发送请求
-reqwest = { version = "0.12.25", features = ["json"] }
+reqwest = { version = "0.12.25", features = ["json", "__rustls"], default-features = false }
 
 # 日志
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4.5.53", features = ["derive"] }

@@ -4,10 +4,31 @@ use axum::{
     http::StatusCode,
     routing::post,
 };
+
+use clap::Parser;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info}; // 引入 clap
+
+// --- 0. 命令行参数结构体 ---
+
+/// Miniflux Webhook 转发到飞书机器人的服务
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// 监听的 IP 地址
+    #[arg(short = 'i', long, default_value = "0.0.0.0")]
+    ip: String,
+
+    /// 监听的端口
+    #[arg(short = 'p', long, default_value_t = 8081)]
+    port: u16,
+
+    /// 飞书机器人的 Webhook URL
+    #[arg(short = 'w', long)]
+    webhook_url: String,
+}
 
 // --- 1. 配置和状态 ---
 
@@ -153,29 +174,46 @@ async fn handle_miniflux_webhook(
 // --- 6. 主函数 ---
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 解析命令行参数
+    let args = Args::parse();
+
     // 初始化日志系统
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    // 从环境变量获取飞书 Webhook URL，如果不存在则使用一个占位 URL
-    let lark_webhook_url = std::env::var("LARK_WEBHOOK_URL").unwrap_or_else(|_| {
-        error!("LARK_WEBHOOK_URL 环境变量未设置！请务必设置正确的飞书 Webhook URL。");
-        "http://placeholder.invalid".to_string()
-    });
+    info!(
+        "服务配置：IP={}, Port={}, Webhook={}",
+        args.ip, args.port, args.webhook_url
+    );
+
+    // 检查 Webhook URL 是否已提供 (因为我们在 Args 中没有设置默认值，所以这里只是强调)
+    if args.webhook_url.is_empty() || args.webhook_url == "" {
+        error!("请通过 -w 或 --webhook-url 参数提供飞书 Webhook URL。");
+        return Err("缺少 Webhook URL 参数".into());
+    }
 
     let app_state = Arc::new(AppState {
-        lark_webhook_url,
-        http_client: Client::new(),
+        lark_webhook_url: args.webhook_url,
+        http_client: Client::builder() // 使用 builder 方法
+            .use_rustls_tls() // 明确指定使用 rustls
+            .build()
+            .expect("无法创建 reqwest 客户端"),
     });
+
+    // 拼接监听地址
+    let addr = format!("{}:{}", args.ip, args.port);
 
     // 定义 Webhook 路由
     let app = Router::new()
-        // 注意：路由路径要与 Nginx 代理的路径匹配
         .route("/webhook", post(handle_miniflux_webhook))
         .with_state(app_state);
-    // 监听 8081 端口
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8081").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+
+    info!("服务正在监听：{}", addr);
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
