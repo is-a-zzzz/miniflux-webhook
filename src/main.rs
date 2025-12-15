@@ -41,13 +41,15 @@ struct AppState {
 // --- 2. Miniflux 数据结构定义 ---
 
 // 定义 Miniflux Webhook 发送的 JSON 结构
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize,Default)]
+#[serde(default)]
 struct MinifluxEntry {
     title: String,
     url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize,Default)]
+#[serde(default)]
 struct MinifluxWebhook {
     feed_title: String,
     entries: Vec<MinifluxEntry>,
