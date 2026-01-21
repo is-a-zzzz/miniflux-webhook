@@ -135,9 +135,6 @@ fn send_to_lark_sync(webhook_url: &str, payload: &serde_json::Value) -> Result<b
         .map_err(|e| format!("请求失败: {}", e))?;
 
     let status = response.status();
-    let response_text = response.into_string().unwrap_or_else(|_| "无法读取响应体".to_string());
-
-    info!("飞书响应：状态码={}, 响应体={}", status, response_text);
 
     if status == 200 {
         Ok(true)
@@ -145,6 +142,6 @@ fn send_to_lark_sync(webhook_url: &str, payload: &serde_json::Value) -> Result<b
         // 429 Too Many Requests，需要重试
         Ok(false)
     } else {
-        Err(format!("状态码 {}，响应：{}", status, response_text))
+        Err(format!("状态码 {}", status))
     }
 }
