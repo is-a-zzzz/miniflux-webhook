@@ -4,22 +4,26 @@
 
 ## 功能特性
 
-- 🚀 实时接收 Miniflux webhook 通知
-- 📱 推送到飞书群机器人
-- 🔗 自动生成 Miniflux 文章链接
-- 🛡️ 429 限流自动重试（指数退避）
-- 📦 轻量级 Docker 镜像 (~2MB)
-- ⚡ Rust 实现，高性能稳定
+- 实时接收 Miniflux webhook 通知
+- 推送到飞书群机器人
+- 自动生成 Miniflux 文章链接
+- 429 限流自动重试（指数退避）
+- 轻量级 Docker 镜像 (~2MB)
+- Rust 实现，高性能稳定
 
 ## 快速开始
 
 ### 方式一：Docker 部署（推荐）
 
 ```bash
-# 1. 复制配置模板
+# 1. 克隆仓库
+git clone https://github.com/is-a-zzzz/rust-miniflux2feishu.git
+cd rust-miniflux2feishu
+
+# 2. 复制配置模板
 cp .env.example .env
 
-# 2. 编辑配置，设置飞书 Webhook URL
+# 3. 编辑配置，设置飞书 Webhook URL
 vim .env
 ```
 
@@ -38,10 +42,16 @@ PORT=8083
 ```
 
 ```bash
-# 3. 启动服务
+# 4. 构建镜像（带日期标签）
+./build.sh
+
+# 或使用 docker compose
+docker compose build
+
+# 5. 启动服务
 docker compose up -d
 
-# 4. 查看日志
+# 6. 查看日志
 docker compose logs -f
 ```
 
@@ -52,7 +62,7 @@ docker compose logs -f
 cargo build --release
 
 # 启动
-./target/release/miniflux-webhook \
+./target/release/rust-miniflux2feishu \
   -w https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook-url \
   -m https://miniflux.example.com
 ```
@@ -61,11 +71,11 @@ cargo build --release
 
 | 参数 | 环境变量 | 必填 | 默认值 | 说明 |
 |------|----------|------|--------|------|
-| `-w, --webhook-url` | `WEBHOOK_URL` | ✅ | - | 飞书机器人 Webhook URL |
-| `-m, --miniflux-url` | `MINIFLUX_URL` | ❌ | 空 | Miniflux 服务器地址 |
-| `-i, --ip` | `IP` | ❌ | 0.0.0.0 | 监听地址 |
-| `-p, --port` | `PORT` | ❌ | 8083 | 监听端口 |
-| - | `RUST_LOG` | ❌ | info | 日志级别 |
+| `-w, --webhook-url` | `WEBHOOK_URL` | 是 | - | 飞书机器人 Webhook URL |
+| `-m, --miniflux-url` | `MINIFLUX_URL` | 否 | 空 | Miniflux 服务器地址 |
+| `-i, --ip` | `IP` | 否 | 0.0.0.0 | 监听地址 |
+| `-p, --port` | `PORT` | 否 | 8083 | 监听端口 |
+| - | `RUST_LOG` | 否 | info | 日志级别 |
 
 ### 获取飞书 Webhook URL
 
@@ -81,45 +91,20 @@ cargo build --release
 https://your-server.com:8083/webhook
 ```
 
-## Webhook 格式
-
-### 请求格式
-
-Miniflux 会发送 POST 请求到 `/webhook` 端点：
-
-```json
-{
-  "event_type": "new_entries",
-  "feed": {
-    "id": 22,
-    "title": "示例订阅源"
-  },
-  "entries": [
-    {
-      "id": 1307,
-      "feed_id": 22,
-      "title": "文章标题",
-      "url": "https://example.com/article",
-      "published_at": "2025-01-21T10:00:00Z",
-      "content": "<p>文章内容...</p>",
-      "author": "作者"
-    }
-  ]
-}
-```
-
-### 飞书推送格式
+## 飞书推送格式
 
 每篇文章会单独推送一张卡片：
 
 ```
-【文章标题】
-📅 2025-01-21 10:00
-📱 Miniflux 查看
-🔗 原文链接
+┌─────────────────────────────┐
+│ 【文章标题】                 │ ← 加粗显示
+│                             │
+│ Miniflux                    │
+│ 原文                        │
+└─────────────────────────────┘
 ```
 
-其中 **📱 Miniflux 查看** 链接格式：
+**Miniflux** 链接格式：
 ```
 https://miniflux.example.com/rss/feed/{feed_id}/entry/{entry_id}
 ```
@@ -147,6 +132,10 @@ curl -X POST http://127.0.0.1:8083/webhook \
 - **基础镜像**: scratch
 - **架构**: linux/amd64
 - **大小**: 约 2-3 MB
+
+使用 `build.sh` 构建的镜像标签：
+- `rust-miniflux2feishu:YYYYMMDD` （日期标签）
+- `rust-miniflux2feishu:latest`
 
 ## 生产环境建议
 
