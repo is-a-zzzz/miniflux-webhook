@@ -9,9 +9,3 @@ services:
     # 或者直接使用 env_file（推荐）
     env_file:
       - .env
-    # Docker 日志轮转配置
-    logging:
-      driver: "local"
-      options:
-        max-size: "10m"
-        mode: "non-blocking"

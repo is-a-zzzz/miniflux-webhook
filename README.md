@@ -124,9 +124,10 @@ curl -X POST http://127.0.0.1:8083/webhook \
 服务自动处理飞书 429 限流：
 
 - 最多重试 3 次
-- 指数退避：1秒 → 2秒 → 4秒
-- 消息间延迟 1 秒（避免触发飞书 5 req/sec 限流）
+- 遇到 429 立即重试（不延迟，实测飞书限流较宽松）
 - Webhook 串行处理（全局锁，防止并发冲突）
+
+**注意**：在 musl 静态链接环境下，为了避免 timer 卡住问题，采用立即发送策略。实际测试表明，连续发送 10 条消息不会触发 429 限流。
 
 ## Docker 镜像
 
@@ -185,17 +186,22 @@ cargo build --release
 
 ### HTTP 客户端选择
 
-使用 **ureq**（同步）而非 reqwest（异步），原因：
+使用 **reqwest**（异步）+ **rustls**（纯 Rust TLS）：
 
-1. **稳定性问题解决**：reqwest 在 Docker + musl 环境中处理连续请求时存在 bug
-   - 症状：第 6-7 个请求后卡住，既无响应也无超时
-   - 根本原因：Tokio 异步运行时 + rustls + musl 的交互问题
-   - 解决方案：`spawn_blocking` + ureq 同步客户端
+1. **异步高性能**：适合处理大量并发 webhook 请求
+2. **rustls**：避免 OpenSSL 依赖，适配 Docker musl 环境
+3. **无延迟策略**：连续发送 + 429 重试，避免 timer 卡住问题
 
-2. **性能权衡**
-   - ureq：简单可靠，每请求独立线程
-   - reqwest：异步高性能，但环境兼容性问题
-   - Webhook 场景：低频请求，同步性能足够
+### 已知问题
+
+在 **musl 静态链接** 环境下，tokio 的 timer 功能不可靠：
+- `tokio::time::sleep()` 会卡住
+- `tokio::time::timeout()` 也会失效
+- `spawn_blocking + thread::sleep()` 同样卡住
+
+**解决方案**：移除所有延迟机制，改为立即发送 + 重试策略。
+
+详见：[TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ### 构建优化
 
@@ -215,8 +221,7 @@ RUN touch src/main.rs && cargo install --path . --root /
 
 ### 相关问题
 
-- [reqwest connection pool issues](https://github.com/seanmonstar/reqwest/discussions/1935)
-- [Tracking TCP Keepalives in Docker](https://about.gitlab.com/blog/tracking-down-missing-tcp-keepalives/)
+详见故障排查文档：[TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ## License
 

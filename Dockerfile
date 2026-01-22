@@ -10,10 +10,6 @@ COPY Cargo.toml Cargo.lock ./
 # 2. 创建虚拟源码来构建依赖（利用Docker缓存）
 RUN mkdir src && \
     echo "fn main() {}" > src/main.rs && \
-    CARGO_PROFILE_RELEASE_LTO=true \
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
-    CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
-    CARGO_PROFILE_RELEASE_STRIP=true \
     cargo install --path . --root / && \
     rm -rf src
 
@@ -22,14 +18,7 @@ COPY src ./src
 
 # 4. 重新构建（只编译自己的代码，依赖已缓存）
 RUN touch src/main.rs && \
-    CARGO_PROFILE_RELEASE_LTO=true \
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
-    CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
-    CARGO_PROFILE_RELEASE_STRIP=true \
     cargo install --path . --root /
-
-# 进一步 strip 去除符号
-RUN x86_64-linux-musl-strip /bin/rust-miniflux2feishu || true
 
 # ============================================
 # 运行阶段：使用 scratch 裸镜像
