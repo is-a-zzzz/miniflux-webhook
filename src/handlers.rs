@@ -70,6 +70,16 @@ pub async fn handle_miniflux_webhook(
                     eprintln!("[HTTP-{}] 请求成功", index + 1);
                     info!("成功发送第 {} 篇文章到飞书", index + 1);
 
+                    // 如果不是最后一篇，添加延迟
+                    if index < payload.entries.len() - 1 {
+                        eprintln!("[DELAY-{}] 开始等待 100ms", index + 1);
+
+                        // 使用 tokio::time::sleep（100ms 稳定，1000ms 会卡住）
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+
+                        eprintln!("[DELAY-{}] 等待完成", index + 1);
+                    }
+
                     eprintln!("[PROCESS-{}] 第 {} 篇文章处理完成", index + 1, index + 1);
                     success_count += 1;
                     break;
@@ -90,7 +100,9 @@ pub async fn handle_miniflux_webhook(
                         retries, backoff_ms
                     );
                     eprintln!("[RETRY-{}] 等待 {}ms 后重试", index + 1, backoff_ms);
-                    // 429 时直接重试，不延迟（因为 sleep 不可靠）
+
+                    // 使用 tokio::time::sleep
+                    tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
                 }
                 Err(e) => {
                     // 其他错误，不重试
@@ -120,14 +132,18 @@ async fn send_to_lark<T: serde::Serialize>(
     webhook_url: &str,
     payload: &T,
 ) -> Result<bool, String> {
-    eprintln!("[HTTP] 开始创建 HTTP 客户端");
+    // 只创建一次 HTTP 客户端，连接池会复用
+    static HTTP_CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
 
-    // 创建 HTTP 客户端，设置超时
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
-        .connect_timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| format!("创建客户端失败: {}", e))?;
+    let client = HTTP_CLIENT.get_or_init(|| {
+        eprintln!("[HTTP] 初始化 HTTP 客户端");
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
+            .connect_timeout(Duration::from_secs(5))
+            .pool_max_idle_per_host(10) // 增加连接池大小
+            .build()
+            .expect("Failed to create HTTP client")
+    });
 
     eprintln!("[HTTP] HTTP 客户端创建成功，开始发送请求");
 
